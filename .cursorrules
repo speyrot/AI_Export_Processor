@@ -1,0 +1,102 @@
+# .cursorrules
+
+## Role of the AI
+The AI assistant serves as a coding facilitator and advisor. It references the documents in the `/Documentation` directory to:
+- Develop backend and frontend components based on project specifications.
+- Follow the structure and workflows described in `backend-guidelines.md` and `frontend-guidelines.md`.
+- Generate clean, modular, and maintainable code.
+- Ensure adherence to best practices for Python (FastAPI) and React (Next.js) development.
+- Assist with integration tasks involving Supabase and Bootstrap.
+
+## Tech Stack
+### Frontend
+- Next.js (React-based)
+- TypeScript
+- Bootstrap
+- Axios
+- Formik and Yup
+
+### Backend
+- Python 3.9+
+- FastAPI
+- pandas
+- fuzzywuzzy
+- OpenAI GPT-4
+- Supabase
+
+### Tools
+- Git (Version Control)
+- Docker (optional for containerization)
+- Vercel (for frontend deployment)
+- AWS EC2 (for backend deployment)
+
+## Guidelines
+1. **Architecture and Modules**:
+   - Follow the module structure specified in `Documentation/backend-guidelines.md` and `Documentation/frontend-guidelines.md`.
+   - Maintain a clear separation of concerns by organizing code into distinct modules (e.g., API endpoints, services, models, and utilities).
+
+2. **Data Flow**:
+   - Adhere to the workflows described in `Documentation/app-flow.md`.
+   - Ensure seamless communication between the frontend and backend via RESTful APIs and Supabase services.
+
+3. **Frontend Development**:
+   - Utilize Bootstrap for consistent and responsive UI design.
+   - Ensure the frontend remains lightweight and intuitive, focusing on essential functionalities.
+   - Display user-friendly error messages for invalid uploads or processing failures.
+
+4. **Backend Development**:
+   - Prioritize accurate data processing and handle edge cases gracefully.
+   - Ensure API endpoints are well-documented and thoroughly tested.
+   - Leverage Supabase for authentication, database management, and storage, minimizing reliance on additional AWS services.
+
+5. **Code Quality**:
+   - Use docstrings and comments to document functions, classes, and complex logic.
+   - Write clear, maintainable, and readable code with meaningful names for variables and functions.
+   - Follow SOLID principles to enhance code modularity and scalability.
+
+6. **Error Handling**:
+   - Provide descriptive error messages for issues such as:
+     - Invalid file formats or sizes.
+     - Authentication failures.
+     - Data processing errors.
+     - Storage access issues.
+   - Return appropriate HTTP status codes (e.g., 400 for client errors, 500 for server errors).
+
+7. **Testing**:
+   - Write unit tests for critical backend modules and frontend components.
+   - Conduct integration tests to ensure smooth interactions between frontend, backend, and Supabase services.
+   - Focus on testing key user workflows, such as file uploads, processing, and downloads.
+
+8. **Security**:
+   - Store sensitive data securely using environment variables.
+   - Use HTTPS for all data transmissions.
+   - Sanitize all user inputs to prevent injection attacks.
+   - Implement role-based access control using Supabase’s authentication and authorization features.
+
+9. **Deployment**:
+   - Ensure the application runs seamlessly in both local and deployed environments.
+   - Use Vercel for frontend deployment and AWS EC2 for backend deployment.
+   - Utilize Docker for containerization to maintain consistent environments across development, testing, and production.
+
+## Limitations
+1. **General**:
+   - Avoid implementing features beyond the specified requirements (e.g., advanced user analytics or extensive third-party integrations).
+   - Do not store files or sensitive data persistently outside of Supabase Storage unless explicitly required.
+
+2. **Frontend**:
+   - Stick to the basic functionality and design guidelines outlined in `frontend-guidelines.md`.
+   - Refrain from adding unnecessary frontend libraries that could increase complexity or load times.
+
+3. **Backend**:
+   - Do not hardcode file paths or sensitive credentials; use environment variables instead.
+   - Avoid adding unused or overly complex dependencies that are not essential to the project.
+
+4. **Testing**:
+   - Focus on tests for expected use cases and critical edge cases.
+   - Do not overcomplicate test scenarios beyond what is necessary to ensure reliability.
+
+## Extensions (Optional)
+If additional features or enhancements are requested in the future, they must:
+- Be approved and documented in the `/Documentation` directory.
+- Adhere to the same code quality and modularity standards as the existing system.
+- Maintain the lean and focused approach to avoid unnecessary complexities.
