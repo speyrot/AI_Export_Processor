@@ -1,3 +1,5 @@
+# app/core/config.py
+
 from pydantic_settings import BaseSettings
 from pathlib import Path
 from typing import Dict, List
@@ -18,14 +20,16 @@ class Settings(BaseSettings):
     
     # Standard column mappings
     STANDARD_COLUMNS: Dict[str, List[str]] = {
-        'Product Code': ['product_code', 'style_code', 'item_code', 'sku'],
-        'Description': ['desc', 'product_desc', 'item_description', 'description'],
-        'Quantity': ['qty', 'quantity', 'amount'],
-        'Unit Price': ['price', 'unit_price', 'rate'],
-        'Total': ['total', 'total_price', 'amount']
+        "Export Invoice #": ["Export Invoice #", "Export Document", "Export Invoice Number"],
+        "Style": ["Style", "Item", "Product Style", "Style/Item/Style/Product Style", "Product Code"],
+        "Description": ["Description", "Item Description", "Product Description", "desc", "product_desc", "item_description"],
+        "Invoice Quantity": ["Quantity", "QTY", "Invoice Qty", "Qty", "quantity"],
+        "Total Amount": ["Total Amount", "Amount US$", "Amount", "Total", "total", "total_price", "amount"],
+        "HS Code": ["HS Code", "Customs Nomenclature", "Tariff Code"],
+        # "Customs Unit of Measure" and "Customs Quantity" will be derived fields
     }
 
     class Config:
         env_file = ".env"
 
-settings = Settings() 
+settings = Settings()
