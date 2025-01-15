@@ -9,14 +9,17 @@ def init_supabase() -> Client:
         auto_refresh_token=False,
         persist_session=False,
         headers={
-            'Authorization': f'Bearer {settings.SUPABASE_SERVICE_KEY}',
-            'apikey': settings.SUPABASE_SERVICE_KEY
+            # Use anon key for storage operations to respect RLS
+            'apikey': settings.SUPABASE_ANON_KEY,
+            # Include service key in headers for admin operations if needed
+            'Authorization': f'Bearer {settings.SUPABASE_SERVICE_KEY}'
         }
     )
     
+    # Initialize with anon key for client operations
     supabase = create_client(
         settings.SUPABASE_URL,
-        settings.SUPABASE_SERVICE_KEY,
+        settings.SUPABASE_ANON_KEY,  # Use anon key as primary
         options=options
     )
     return supabase

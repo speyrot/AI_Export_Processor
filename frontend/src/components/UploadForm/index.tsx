@@ -1,13 +1,25 @@
+// frontend/src/components/UploadForm/index.tsx
+
 "use client"
 
 import { useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { ProcessedFiles } from '@/components/ProcessedFiles'
+
+// Add type for the signed URL response
+type SignedUrlResponse = {
+  data: {
+    signedUrl: string
+  } | null
+  error: Error | null
+}
 
 export function UploadForm() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [processedFileUrl, setProcessedFileUrl] = useState<string | null>(null)
   const { user } = useAuth()
 
   const onDrop = async (acceptedFiles: File[]) => {
@@ -25,7 +37,8 @@ export function UploadForm() {
 
       // Upload to Supabase Storage
       const timestamp = new Date().getTime()
-      const filePath = `uploads/${user?.id}/${timestamp}_${file.name}`
+      const randomId = Math.random().toString(36).substring(2, 15)
+      const filePath = `uploads/${user?.id}/${timestamp}_${randomId}_${file.name}`
       
       console.log('Attempting upload:', {
         bucket: 'invoices',
@@ -44,15 +57,15 @@ export function UploadForm() {
       }
 
       // Get signed URL that's valid for 1 hour
-      const { data: { signedUrl } } = await supabase.storage
+      const { data, error: signUrlError }: SignedUrlResponse = await supabase.storage
         .from('invoices')
         .createSignedUrl(filePath, 3600)
 
-      if (!signedUrl) {
+      if (signUrlError || !data?.signedUrl) {
         throw new Error('Failed to get signed URL')
       }
 
-      console.log('Upload successful, signed URL:', signedUrl)
+      console.log('Upload successful, signed URL:', data.signedUrl)
 
       // Send to backend for processing
       const response = await fetch('http://localhost:8000/api/process', {
@@ -61,22 +74,23 @@ export function UploadForm() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          fileUrl: signedUrl,
+          fileUrl: data.signedUrl,
           userId: user?.id,
           originalFileName: file.name
         }),
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('Backend processing error:', errorData)
-        throw new Error(errorData.detail || 'Processing failed')
+        console.error('Backend processing error:', responseData)
+        throw new Error(responseData.detail || 'Processing failed')
       }
 
-      const result = await response.json()
-      console.log('Processing result:', result)
+      console.log('Processing result:', responseData)
       
-      // Handle successful processing
+      // Set the processed file URL
+      setProcessedFileUrl(responseData.fileUrl)
       setIsProcessing(false)
       
     } catch (err: any) {
@@ -142,6 +156,8 @@ export function UploadForm() {
           {error}
         </div>
       )}
+
+      {processedFileUrl && <ProcessedFiles fileUrl={processedFileUrl} />}
     </div>
   )
 } 

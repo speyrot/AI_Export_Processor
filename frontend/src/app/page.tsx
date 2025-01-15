@@ -1,10 +1,11 @@
+// frontend/src/app/page.tsx
+
 "use client"
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { UploadForm } from '@/components/UploadForm'
-import { ProcessedFiles } from '@/components/ProcessedFiles'
 
 export default function Home() {
   const { user, loading, signOut } = useAuth()
@@ -57,8 +58,6 @@ export default function Home() {
               <UploadForm />
             </div>
           </div>
-
-          <ProcessedFiles />
         </div>
       </div>
     </div>

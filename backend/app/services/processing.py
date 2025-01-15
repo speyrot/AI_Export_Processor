@@ -20,27 +20,30 @@ executor = ThreadPoolExecutor(max_workers=10)
 def calculate_customs_quantity(invoice_quantity: float, unit_of_measure: str) -> float:
     """
     Calculate Customs Quantity based on Invoice Quantity and Unit of Measure.
-
-    Args:
-        invoice_quantity (float): The quantity from the invoice.
-        unit_of_measure (str): The customs unit of measure abbreviation.
-
-    Returns:
-        float: The calculated customs quantity.
     """
+    # Handle None or NaN values
+    if pd.isna(invoice_quantity):
+        return 0.0
+
+    try:
+        invoice_quantity = float(invoice_quantity)
+    except (ValueError, TypeError):
+        logger.error(f"Invalid invoice quantity: {invoice_quantity}")
+        return 0.0
+
     unit_factors = {
         "DOZ": 12,
         "NUM": 1,
-        "KG": 1,    # Assuming per kilogram
-        "LBS": 1,   # Assuming per pound
-        # Add more unit factors as needed
+        "KG": 1,
+        "LBS": 1,
     }
     factor = unit_factors.get(unit_of_measure, 1)
+    
     try:
         return invoice_quantity / factor
     except Exception as e:
         logger.error(f"Error calculating customs quantity: {e}")
-        return invoice_quantity  # Fallback to invoice quantity if error occurs
+        return 0.0
 
 async def process_invoice(file_url: str, user_id: str, original_filename: str) -> str:
     """
@@ -57,6 +60,8 @@ async def process_invoice(file_url: str, user_id: str, original_filename: str) -
     logger.info(f"Starting to process file: {file_url}")
 
     try:
+        loop = asyncio.get_running_loop()
+
         # Download file using the signed URL directly
         async with httpx.AsyncClient() as client_http:
             logger.info("Downloading from signed URL")
@@ -72,40 +77,75 @@ async def process_invoice(file_url: str, user_id: str, original_filename: str) -
             logger.info(f"Saved temporary file to: {temp_path}")
 
         # Read the Excel file with appropriate engine
-        logger.info("Reading Excel file")
+        logger.info("Reading Excel file and identifying headers")
         engine = 'openpyxl' if file_extension == '.xlsx' else 'xlrd'
-        df = pd.read_excel(temp_path, engine=engine)
-        logger.info(f"Excel file columns: {df.columns.tolist()}")
-
-        # Get AI-powered column mappings using run_in_executor
-        logger.info("Getting column mappings")
-        loop = asyncio.get_event_loop()
-        mappings = await loop.run_in_executor(
-            executor,
-            get_column_mappings,
-            df.columns.tolist(),
-            settings.STANDARD_COLUMNS
-        )
-        logger.info(f"Column mappings: {mappings}")
-
-        # Validate that all required standard columns are mapped
-        required_columns = ["Export Invoice #", "Style", "Description", "Invoice Quantity", "Total Amount", "HS Code"]
-        missing_columns = [col for col in required_columns if col not in mappings.values()]
-        if missing_columns:
-            raise ValueError(f"Missing required columns after mapping: {missing_columns}")
-
-        # Apply mappings to create standardized DataFrame
+        df = pd.read_excel(temp_path, engine=engine, header=None)
+        
+        # Find the row containing 'EAN Code' which indicates our header row
+        header_row = None
+        for idx, row in df.iterrows():
+            if 'EAN Code' in row.values:
+                header_row = idx
+                break
+        
+        if header_row is None:
+            raise ValueError("Could not find header row with 'EAN Code'")
+        
+        # Read the file again, but now with the correct header row
+        df = pd.read_excel(temp_path, engine=engine, skiprows=header_row)
+        
+        # Clean up column names (remove any whitespace)
+        df.columns = df.columns.str.strip()
+        
+        logger.info(f"Found headers at row {header_row}")
+        logger.info(f"Actual columns found: {df.columns.tolist()}")
+        
+        # Create the standardized DataFrame with direct mappings
         standardized_df = pd.DataFrame()
-        for source_col, standard_col in mappings.items():
-            if source_col in df.columns and standard_col in required_columns:
-                standardized_df[standard_col] = df[source_col]
+        
+        # Direct column mappings
+        column_mappings = {
+            'Style': 'Product Code',
+            'Description': 'Description',
+            'HS code': 'HS Code',
+            'Export Invoice #': 'Export Invoice #',
+            'Quantity': 'Invoice Quantity',
+            'Total Amount': 'Total Amount'
+        }
+        
+        # Apply the mappings and log each mapping attempt
+        for source_col, target_col in column_mappings.items():
+            if source_col in df.columns:
+                logger.info(f"Mapping column {source_col} to {target_col}")
+                standardized_df[target_col] = df[source_col]
+            else:
+                logger.error(f"Missing column: {source_col}")
+                logger.info(f"Available columns: {df.columns.tolist()}")
+                standardized_df[target_col] = None
+        
+        # Add debug logging
+        logger.info(f"Original DataFrame sample:\n{df.head()}")
+        logger.info(f"Standardized DataFrame sample:\n{standardized_df.head()}")
+        
+        # Ensure we have data
+        if standardized_df.empty:
+            raise ValueError("No data was extracted from the file")
+        
+        # Ensure all required columns are present and have data
+        required_columns = [
+            "Export Invoice #",
+            "Product Code",
+            "Description",
+            "Invoice Quantity",
+            "Total Amount",
+            "HS Code"
+        ]
+        
+        missing_columns = [col for col in required_columns if col not in standardized_df.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
 
-        # Ensure all required columns are present
-        for col in required_columns:
-            if col not in standardized_df.columns:
-                standardized_df[col] = None  # or handle as appropriate
-
-        # Determine Customs Unit of Measure based on HS Code using run_in_executor
+        # Determine Customs Unit of Measure based on HS Code
         logger.info("Determining Customs Unit of Measure based on HS Code")
         hs_codes = standardized_df['HS Code'].astype(str).unique().tolist()
 
@@ -133,7 +173,7 @@ async def process_invoice(file_url: str, user_id: str, original_filename: str) -
         # Select and order the required columns
         output_columns = [
             "Export Invoice #",
-            "Style",
+            "Product Code",
             "Description",
             "Invoice Quantity",
             "Total Amount",
@@ -149,25 +189,61 @@ async def process_invoice(file_url: str, user_id: str, original_filename: str) -
 
         # Save to temporary file
         output_path = os.path.join(tempfile.gettempdir(), output_filename)
-        standardized_df.to_excel(output_path, index=False)
-        logger.info(f"Saved processed file to: {output_path}")
+
+        # Determine output format (always save as xlsx)
+        output_filename = os.path.splitext(original_filename)[0] + '.xlsx'
+        output_path = os.path.join(tempfile.gettempdir(), output_filename)
+
+        try:
+            # Save to Excel (xlsx format)
+            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+                standardized_df.to_excel(writer, index=False)
+            logger.info(f"Saved processed file to: {output_path}")
+        except Exception as e:
+            logger.error(f"Error saving Excel file: {e}")
+            raise
 
         # Upload processed file to Supabase
         try:
             with open(output_path, 'rb') as f:
-                processed_file_path = f'processed/{user_id}/{output_filename}'
+                # Use the uploads folder since we know it works for the initial file
+                processed_file_path = f'uploads/{user_id}/processed_{output_filename}'
                 logger.info(f"Uploading to Supabase: {processed_file_path}")
-                result = supabase.storage.from_('invoices').upload(processed_file_path, f)
-                logger.info(f"Upload result: {result}")
+                
+                # Upload with minimal options
+                result = supabase.storage.from_('invoices').upload(
+                    path=processed_file_path,
+                    file=f
+                )
+                logger.info(f"Upload successful: {result}")
+
         except Exception as e:
             logger.error(f"Error uploading to Supabase: {str(e)}")
             raise Exception(f"Failed to upload processed file: {str(e)}")
 
-        # Get public URL for processed file
-        file_url_processed = supabase.storage.from_('invoices').get_public_url(processed_file_path)
-        logger.info(f"Generated public URL: {file_url_processed}")
+        # Get signed URL for the processed file
+        try:
+            signed_url_result = supabase.storage.from_('invoices').create_signed_url(
+                path=processed_file_path,
+                expires_in=3600
+            )
+            
+            if isinstance(signed_url_result, dict) and 'signedURL' in signed_url_result:
+                signed_url = signed_url_result['signedURL']
+                logger.info(f"Generated signed URL successfully")
+                return signed_url
+            else:
+                logger.error(f"Unexpected signed URL result format: {signed_url_result}")
+                raise Exception("Failed to generate valid signed URL")
+        
+        except Exception as url_error:
+            logger.error(f"Error getting signed URL: {str(url_error)}")
+            raise Exception(f"Failed to generate signed URL: {str(url_error)}")
 
-        return file_url_processed
+        # Add after the mappings are created:
+        logger.info("Original columns:", df.columns.tolist())
+        logger.info("Reverse mappings:", reverse_mappings)
+        logger.info("Final columns in standardized_df:", standardized_df.columns.tolist())
 
     except Exception as e:
         logger.error(f"Error in processing: {str(e)}", exc_info=True)

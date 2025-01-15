@@ -1,3 +1,5 @@
+// frontend/src/components/ProcessedFiles/index.tsx
+
 interface ProcessedFilesProps {
   fileUrl: string
 }
@@ -15,8 +17,9 @@ export function ProcessedFiles({ fileUrl }: ProcessedFilesProps) {
         </div>
         <a 
           href={fileUrl}
-          download
           className="btn btn-primary"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           <i className="bi bi-download me-2"></i>
           Download Processed Invoice
